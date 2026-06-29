@@ -41,6 +41,15 @@ func (c *Client) GetChannel(channelID string) (*Channel, error) {
 	return &channel, nil
 }
 
+func (c *Client) GetChannelMember(channelID, userID string) (*ChannelMember, error) {
+	url := fmt.Sprintf("%s/api/v4/channels/%s/members/%s", c.BaseURL, channelID, userID)
+	var member ChannelMember
+	if err := c.get(url, &member); err != nil {
+		return nil, err
+	}
+	return &member, nil
+}
+
 func (c *Client) GetPosts(channelID string, limit int) (*PostList, error) {
 	url := fmt.Sprintf("%s/api/v4/channels/%s/posts?page=0&per_page=%d", c.BaseURL, channelID, limit)
 	var postList PostList

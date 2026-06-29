@@ -85,7 +85,16 @@ func (h *HandlerContext) HandleSlashCommand(w http.ResponseWriter, r *http.Reque
 					Type:        "text",
 					SubType:     "number",
 					Default:     "5",
-					HelpText:    "Enter a value between 1 and 50.",
+					HelpText:    "Number of messages to grab (between 1 and 50).",
+				},
+				{
+					DisplayName: "Number of Newest Messages to Skip",
+					Name:        "skip_messages",
+					Type:        "text",
+					SubType:     "number",
+					Default:     "0",
+					Optional:    true,
+					HelpText:    "Number of newest messages to exclude (e.g. enter 3 to skip the 3 newest).",
 				},
 				{
 					DisplayName: "Destination Channel",
@@ -184,6 +193,28 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 		}
 	}
 
+	var skip int
+	skipVal, hasSkip := submissionReq.Submission["skip_messages"]
+	if hasSkip && skipVal != nil {
+		switch v := skipVal.(type) {
+		case float64:
+			skip = int(v)
+		case int:
+			skip = v
+		case string:
+			trimmed := strings.TrimSpace(v)
+			if trimmed != "" {
+				var err error
+				skip, err = strconv.Atoi(trimmed)
+				if err != nil || skip < 0 {
+					errors["skip_messages"] = "Please enter a valid non-negative number."
+				}
+			}
+		default:
+			errors["skip_messages"] = "Please enter a valid non-negative number."
+		}
+	}
+
 	destChannel := getSubmissionStr("dest_channel_id")
 	destUser := getSubmissionStr("dest_user_id")
 
@@ -193,6 +224,15 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	} else if destChannel != "" && destUser != "" {
 		errors["dest_channel_id"] = "Select only ONE destination (Channel or User)."
 		errors["dest_user_id"] = "Select only ONE destination (Channel or User)."
+	}
+
+	// Verify destination channel membership
+	if len(errors) == 0 && destChannel != "" {
+		_, err := h.Client.GetChannelMember(destChannel, submissionReq.UserID)
+		if err != nil {
+			log.Printf("[WARN] User %s is not a member of destination channel %s (or bot has no access): %v", submissionReq.UserID, destChannel, err)
+			errors["dest_channel_id"] = "You can only forward to channels you are a member of."
+		}
 	}
 
 	if len(errors) > 0 {
@@ -214,7 +254,7 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	go func() {
-		err := ExecuteForwardPipeline(h.Client, state.SourceChannelID, state.TriggeringUserID, num, destChannel, destUser)
+		err := ExecuteForwardPipeline(h.Client, state.SourceChannelID, state.TriggeringUserID, num, skip, destChannel, destUser)
 		if err != nil {
 			log.Printf("[ERROR] Failed to execute forwarding pipeline: %v", err)
 			_ = h.Client.CreateEphemeralPost(state.TriggeringUserID, state.SourceChannelID, fmt.Sprintf("⚠️ Message forwarding failed: %v", err))

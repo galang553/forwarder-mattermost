@@ -50,6 +50,11 @@ type Channel struct {
 	Type        string `json:"type"`
 }
 
+type ChannelMember struct {
+	ChannelID string `json:"channel_id"`
+	UserID    string `json:"user_id"`
+}
+
 type Post struct {
 	ID        string `json:"id"`
 	CreateAt  int64  `json:"create_at"`

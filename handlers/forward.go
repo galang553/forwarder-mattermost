@@ -10,8 +10,8 @@ import (
 	"forwarder-mattermost/mattermost"
 )
 
-func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUserID string, num int, destChannelID, destUserID string) error {
-	log.Printf("[INFO] Starting ExecuteForwardPipeline. SourceChannel: %s, Initiator: %s, MessageCountRequested: %d", srcChannelID, triggerUserID, num)
+func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUserID string, num, skip int, destChannelID, destUserID string) error {
+	log.Printf("[INFO] Starting ExecuteForwardPipeline. SourceChannel: %s, Initiator: %s, MessageCountRequested: %d, SkipCountRequested: %d", srcChannelID, triggerUserID, num, skip)
 
 	srcChannel, err := client.GetChannel(srcChannelID)
 	if err != nil {
@@ -19,13 +19,17 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	}
 	log.Printf("[INFO] Source channel resolved: %s (Type: %s)", srcChannel.DisplayName, srcChannel.Type)
 
-	fetchLimit := num + 10
+	// Fetch enough posts to cover both the skipped messages and the requested messages
+	fetchLimit := num + skip + 10
 	if fetchLimit > 100 {
 		fetchLimit = 100
 	}
 	log.Printf("[INFO] Fetching posts from source channel. Limit: %d", fetchLimit)
 	postList, err := client.GetPosts(srcChannelID, fetchLimit)
 	if err != nil {
+		if strings.Contains(err.Error(), "status 403") {
+			return fmt.Errorf("the bot does not have permission to read messages in this channel. If this is a Private Channel, please invite the bot account to this channel first. (Note: Bots cannot read private Direct Message chats between other users)")
+		}
 		return fmt.Errorf("failed to fetch posts: %w", err)
 	}
 
@@ -36,27 +40,38 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 			continue
 		}
 
-		if post.Type == "" && strings.TrimSpace(post.Message) != "" {
+		// Allow all kinds of user posts (Type == "") even if the message text is empty (e.g. contains files or attachments)
+		if post.Type == "" {
 			userPosts = append(userPosts, post)
-		}
-		if len(userPosts) == num {
-			break
 		}
 	}
 	log.Printf("[INFO] Found %d actual user messages out of %d fetched items", len(userPosts), len(postList.Order))
 
-	if len(userPosts) == 0 {
-		return fmt.Errorf("no user messages found to forward in the channel")
+	// Slice/filter using the skip and count range
+	if len(userPosts) <= skip {
+		return fmt.Errorf("no user messages found to forward after skipping the %d newest messages (total user messages: %d)", skip, len(userPosts))
 	}
 
-	// Reverse the order so they are sorted chronologically (oldest first)
-	for i, j := 0, len(userPosts)-1; i < j; i, j = i+1, j-1 {
-		userPosts[i], userPosts[j] = userPosts[j], userPosts[i]
+	// Calculate slice range (userPosts is sorted newest first)
+	endIdx := skip + num
+	if endIdx > len(userPosts) {
+		endIdx = len(userPosts)
+	}
+	selectedPosts := userPosts[skip:endIdx]
+
+	if len(selectedPosts) == 0 {
+		return fmt.Errorf("no user messages selected in the requested range")
 	}
 
+	// Reverse the order of selected posts so they are sorted chronologically (oldest first)
+	for i, j := 0, len(selectedPosts)-1; i < j; i, j = i+1, j-1 {
+		selectedPosts[i], selectedPosts[j] = selectedPosts[j], selectedPosts[i]
+	}
+
+	// Collect unique user IDs to resolve usernames
 	userIDMap := make(map[string]bool)
 	userIDMap[triggerUserID] = true
-	for _, p := range userPosts {
+	for _, p := range selectedPosts {
 		userIDMap[p.UserID] = true
 	}
 
@@ -86,7 +101,7 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("### 🔄 Forwarded messages from **~%s** (requested by @%s):\n\n", srcChannel.DisplayName, triggerUsername))
 
-	for _, p := range userPosts {
+	for _, p := range selectedPosts {
 		author, ok := usernameLookup[p.UserID]
 		if !ok {
 			author = "user_" + p.UserID[:6]
@@ -95,7 +110,13 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 
 		buffer.WriteString(fmt.Sprintf("> **@%s** [%s]:\n", author, postTime))
 
-		lines := strings.Split(p.Message, "\n")
+		// Check if message is empty but has attachments
+		msgText := p.Message
+		if strings.TrimSpace(msgText) == "" {
+			msgText = "*[Attachment(s) / Empty Message]*"
+		}
+
+		lines := strings.Split(msgText, "\n")
 		for _, line := range lines {
 			buffer.WriteString(fmt.Sprintf("> %s\n", line))
 		}
@@ -138,7 +159,7 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	}
 	log.Printf("[INFO] Consolidated message posted successfully.")
 
-	successMessage := fmt.Sprintf("✅ Successfully forwarded the last %d message(s) to **%s**.", len(userPosts), destName)
+	successMessage := fmt.Sprintf("✅ Successfully forwarded %d message(s) to **%s**.", len(selectedPosts), destName)
 	log.Printf("[INFO] Sending ephemeral success confirmation to initiator user...")
 	err = client.CreateEphemeralPost(triggerUserID, srcChannelID, successMessage)
 	if err != nil {
