@@ -257,7 +257,7 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	go func() {
-		err := ExecuteForwardPipeline(h.Client, state.SourceChannelID, state.TriggeringUserID, num, skip, destChannel, destUser)
+		err := ExecuteForwardPipeline(h.Client, h.DB, state.SourceChannelID, state.TriggeringUserID, num, skip, destChannel, destUser)
 		if err != nil {
 			log.Printf("[ERROR] Failed to execute forwarding pipeline: %v", err)
 			_ = h.Client.CreateEphemeralPost(state.TriggeringUserID, state.SourceChannelID, fmt.Sprintf("⚠️ Message forwarding failed: %v", err))

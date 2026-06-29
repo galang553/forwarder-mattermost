@@ -19,7 +19,6 @@ func main() {
 
 	client := mattermost.NewClient(cfg.MattermostURL, cfg.BotToken)
 
-	var dbConn *sql.DB
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable connect_timeout=5",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 	db, err := sql.Open("postgres", connStr)
@@ -29,7 +28,6 @@ func main() {
 				err := db.Ping()
 				if err == nil {
 					log.Printf("[INFO] Successfully connected to Mattermost database at %s:%s", cfg.DBHost, cfg.DBPort)
-					dbConn = db
 					break
 				}
 				log.Printf("[WARN] Failed to connect to Mattermost database (attempt %d/6): %v. Retrying in 10 seconds...", i+1, err)
