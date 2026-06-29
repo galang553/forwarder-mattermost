@@ -78,11 +78,6 @@ func (p *Plugin) ExecuteForwardPipeline(triggerUserID, srcPostID string, num, sk
 		return fmt.Errorf("failed to fetch trigger post %s: %w", srcPostID, err)
 	}
 
-	srcChannel, err := p.API.GetChannel(srcPost.ChannelId)
-	if err != nil {
-		return fmt.Errorf("failed to fetch source channel details: %w", err)
-	}
-
 	fetchLimit := num + skip + 10
 	if fetchLimit > 100 {
 		fetchLimit = 100
@@ -119,89 +114,73 @@ func (p *Plugin) ExecuteForwardPipeline(triggerUserID, srcPostID string, num, sk
 		selectedPosts[i], selectedPosts[j] = selectedPosts[j], selectedPosts[i]
 	}
 
-	// Map usernames
-	usernameLookup := make(map[string]string)
-	resolveUser := func(id string) string {
-		if cached, ok := usernameLookup[id]; ok {
-			return cached
-		}
-		u, err := p.API.GetUser(id)
-		if err != nil {
-			return "user_" + id[:6]
-		}
-		usernameLookup[id] = u.Username
-		return u.Username
-	}
-
-	triggerUsername := resolveUser(triggerUserID)
-
-	// Build message content
-	var buffer strings.Builder
-	buffer.WriteString(fmt.Sprintf("### 🔄 Forwarded messages from **~%s** (requested by @%s):\n\n", srcChannel.DisplayName, triggerUsername))
-
-	var fileIDs []string
+	// Send each message separately in chronological order
 	for _, post := range selectedPosts {
-		author := resolveUser(post.UserId)
-		postTime := time.UnixMilli(post.CreateAt).UTC().Format("Jan 02, 15:04:05 UTC")
-
-		buffer.WriteString(fmt.Sprintf("> **@%s** [%s]:\n", author, postTime))
-
 		msgText := post.Message
+
+		// If the message has file IDs, append markdown preview embeds/links
+		if len(post.FileIds) > 0 {
+			var fileLinks []string
+			for _, fileID := range post.FileIds {
+				fileInfo, fileInfoErr := p.API.GetFileInfo(fileID)
+				if fileInfoErr == nil && fileInfo != nil {
+					if strings.HasPrefix(fileInfo.MimeType, "image/") {
+						fileLinks = append(fileLinks, fmt.Sprintf("\n![image](/api/v4/files/%s)", fileID))
+					} else {
+						fileLinks = append(fileLinks, fmt.Sprintf("\n[Attachment Download](/api/v4/files/%s)", fileID))
+					}
+				} else {
+					// Fallback if metadata resolution is unavailable
+					fileLinks = append(fileLinks, fmt.Sprintf("\n[Attachment](/api/v4/files/%s)", fileID))
+				}
+			}
+			msgText = msgText + strings.Join(fileLinks, "")
+		}
+
+		// Prevent posting entirely blank messages
 		if strings.TrimSpace(msgText) == "" {
-			msgText = "*[Attachment(s) / Empty Message]*"
+			msgText = "*[Empty Message]*"
 		}
 
-		lines := strings.Split(msgText, "\n")
-		for _, line := range lines {
-			buffer.WriteString(fmt.Sprintf("> %s\n", line))
-		}
-		buffer.WriteString("> \n")
-
-		// Collect files to attach (limit to 5)
-		for _, fid := range post.FileIds {
-			if len(fileIDs) < 5 {
-				fileIDs = append(fileIDs, fid)
+		// 3. Post to Channels
+		for _, chanID := range destChannelIDs {
+			if chanID == "" {
+				continue
+			}
+			newPost := &model.Post{
+				ChannelId: chanID,
+				UserId:    triggerUserID,
+				Message:   msgText,
+				FileIds:   post.FileIds, // Keep native attachment bindings
+			}
+			if _, createErr := p.API.CreatePost(newPost); createErr != nil {
+				p.API.LogError(fmt.Sprintf("Failed to forward post to channel %s: %v", chanID, createErr))
 			}
 		}
-	}
 
-	finalMessage := strings.TrimSuffix(buffer.String(), "> \n")
+		// 4. Post to Users (DMs)
+		for _, destUserID := range destUserIDs {
+			if destUserID == "" {
+				continue
+			}
+			dmChannel, dmErr := p.API.GetDirectChannel(triggerUserID, destUserID)
+			if dmErr != nil {
+				p.API.LogError(fmt.Sprintf("Failed to get DM channel between %s and %s: %v", triggerUserID, destUserID, dmErr))
+				continue
+			}
+			newPost := &model.Post{
+				ChannelId: dmChannel.Id,
+				UserId:    triggerUserID,
+				Message:   msgText,
+				FileIds:   post.FileIds, // Keep native attachment bindings
+			}
+			if _, createErr := p.API.CreatePost(newPost); createErr != nil {
+				p.API.LogError(fmt.Sprintf("Failed to forward post to DM with User %s: %v", destUserID, createErr))
+			}
+		}
 
-	// 3. Post to Channels
-	for _, chanID := range destChannelIDs {
-		if chanID == "" {
-			continue
-		}
-		post := &model.Post{
-			ChannelId: chanID,
-			UserId:    triggerUserID,
-			Message:   finalMessage,
-			FileIds:   fileIDs,
-		}
-		if _, err := p.API.CreatePost(post); err != nil {
-			p.API.LogError(fmt.Sprintf("Failed to forward post to channel %s: %v", chanID, err))
-		}
-	}
-
-	// 4. Post to Users (DMs)
-	for _, destUserID := range destUserIDs {
-		if destUserID == "" {
-			continue
-		}
-		dmChannel, err := p.API.GetDirectChannel(triggerUserID, destUserID)
-		if err != nil {
-			p.API.LogError(fmt.Sprintf("Failed to get DM channel between %s and %s: %v", triggerUserID, destUserID, err))
-			continue
-		}
-		post := &model.Post{
-			ChannelId: dmChannel.Id,
-			UserId:    triggerUserID,
-			Message:   finalMessage,
-			FileIds:   fileIDs,
-		}
-		if _, err := p.API.CreatePost(post); err != nil {
-			p.API.LogError(fmt.Sprintf("Failed to forward post to DM with User %s: %v", destUserID, err))
-		}
+		// Brief delay to ensure database index ordering
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil

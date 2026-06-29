@@ -15,8 +15,13 @@ const ForwardModal = ({ postId, store, onClose }) => {
     const [activeTab, setActiveTab] = React.useState('channels'); // 'channels' or 'users'
     const [selectedChannels, setSelectedChannels] = React.useState({});
     const [selectedUsers, setSelectedUsers] = React.useState({});
+    
     const [numMessages, setNumMessages] = React.useState(1);
     const [skipMessages, setSkipMessages] = React.useState(0);
+
+    // Live preview states
+    const [previewPosts, setPreviewPosts] = React.useState({});
+    const [previewOrder, setPreviewOrder] = React.useState([]);
     const [loading, setLoading] = React.useState(false);
     const [statusMessage, setStatusMessage] = React.useState(null);
 
@@ -37,12 +42,31 @@ const ForwardModal = ({ postId, store, onClose }) => {
 
                 setChannels(Array.isArray(channelsData) ? channelsData : []);
                 setUsers(Array.isArray(usersData) ? usersData.filter(u => u.id !== currentUserId) : []);
+
+                // 3. Fetch channel posts for the preview
+                const postResp = await fetch(`/api/v4/posts/${postId}`);
+                const postData = await postResp.json();
+                const channelId = postData.channel_id;
+
+                const postsResp = await fetch(`/api/v4/channels/${channelId}/posts?page=0&per_page=30`);
+                const postsData = await postsResp.json();
+
+                if (postsData && Array.isArray(postsData.order)) {
+                    setPreviewPosts(postsData.posts || {});
+                    setPreviewOrder(postsData.order);
+                    
+                    // Align skip index to the selected post position if possible
+                    const idx = postsData.order.indexOf(postId);
+                    if (idx !== -1) {
+                        setSkipMessages(idx);
+                    }
+                }
             } catch (err) {
-                console.error("Failed to load targets:", err);
+                console.error("Failed to load targets or preview:", err);
             }
         };
         loadData();
-    }, [store]);
+    }, [postId, store]);
 
     const handleCheckboxChange = (id, type) => {
         if (type === 'channel') {
@@ -105,16 +129,32 @@ const ForwardModal = ({ postId, store, onClose }) => {
         }
     };
 
-    // Filter lists by search query
+    // Filter lists by search query & ONLY keep Public/Private channels (ignoring DM/GM hashes)
     const filteredChannels = channels.filter(c =>
-        (c.display_name && c.display_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (c.name && c.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        (c.type === 'O' || c.type === 'P') &&
+        ((c.display_name && c.display_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+         (c.name && c.name.toLowerCase().includes(searchQuery.toLowerCase())))
     );
 
     const filteredUsers = users.filter(u =>
         (u.username && u.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
         ((u.first_name || u.last_name) && `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()))
     );
+
+    const getUsername = (userId) => {
+        const u = users.find(user => user.id === userId);
+        if (u) return u.username;
+        const state = store.getState();
+        if (state.entities.users.currentUserId === userId) {
+            return state.entities.users.profiles[userId]?.username || 'me';
+        }
+        return 'user_' + userId.slice(0, 4);
+    };
+
+    // Get the slice of posts that will be forwarded
+    const num = parseInt(numMessages, 10) || 1;
+    const skip = parseInt(skipMessages, 10) || 0;
+    const selectedSlice = previewOrder.slice(skip, skip + num);
 
     // Centered modal styling objects with blur backdrop
     const modalOverlayStyle = {
@@ -124,7 +164,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
         right: 0,
         bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.65)',
-        backdropFilter: 'blur(10px)',
         zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
@@ -134,7 +173,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
 
     const containerStyle = {
         width: '520px',
-        maxHeight: '85vh',
+        maxHeight: '90vh',
         backgroundColor: '#1E1E24',
         border: '1px solid rgba(255, 255, 255, 0.08)',
         borderRadius: '20px',
@@ -147,7 +186,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
     };
 
     const headerStyle = {
-        padding: '20px 24px',
+        padding: '18px 24px',
         borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
         display: 'flex',
         justifyContent: 'space-between',
@@ -181,7 +220,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px'
+        gap: '16px'
     };
 
     const rowStyle = {
@@ -244,7 +283,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
     });
 
     const listStyle = {
-        maxHeight: '180px',
+        maxHeight: '150px',
         overflowY: 'auto',
         border: '1px solid rgba(255, 255, 255, 0.04)',
         borderRadius: '12px',
@@ -272,6 +311,42 @@ const ForwardModal = ({ postId, store, onClose }) => {
     const itemNameStyle = {
         fontSize: '14px',
         fontWeight: '500'
+    };
+
+    // Live preview styling
+    const previewContainerStyle = {
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        padding: '10px',
+        maxHeight: '160px',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+    };
+
+    const previewItemStyle = {
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        border: '1px solid rgba(255, 255, 255, 0.05)',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px'
+    };
+
+    const previewAuthorStyle = {
+        fontSize: '11px',
+        fontWeight: '700',
+        color: '#A78BFA'
+    };
+
+    const previewMsgStyle = {
+        fontSize: '13px',
+        color: '#E5E7EB',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word'
     };
 
     const footerStyle = {
@@ -346,7 +421,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
                                 max="50"
                                 style={inputNumberStyle}
                                 value={numMessages}
-                                onChange={(e) => setNumMessages(e.target.value)}
+                                onChange={(e) => setNumMessages(Math.max(1, parseInt(e.target.value, 10) || 1))}
                             />
                         </div>
                         <div style={formGroupStyle}>
@@ -356,10 +431,29 @@ const ForwardModal = ({ postId, store, onClose }) => {
                                 min="0"
                                 style={inputNumberStyle}
                                 value={skipMessages}
-                                onChange={(e) => setSkipMessages(e.target.value)}
+                                onChange={(e) => setSkipMessages(Math.max(0, parseInt(e.target.value, 10) || 0))}
                             />
                         </div>
                     </div>
+
+                    {/* Messages Selection Preview */}
+                    {selectedSlice.length > 0 && (
+                        <div style={formGroupStyle}>
+                            <label style={labelStyle}>Selected Messages Preview ({selectedSlice.length})</label>
+                            <div style={previewContainerStyle}>
+                                {selectedSlice.map(pid => {
+                                    const post = previewPosts[pid];
+                                    if (!post) return null;
+                                    return (
+                                        <div key={pid} style={previewItemStyle}>
+                                            <div style={previewAuthorStyle}>@{getUsername(post.user_id)}</div>
+                                            <div style={previewMsgStyle}>{post.message || '*[File Attachment / Image]*'}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Search */}
                     <input
