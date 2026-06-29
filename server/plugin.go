@@ -114,33 +114,55 @@ func (p *Plugin) ExecuteForwardPipeline(triggerUserID, srcPostID string, num, sk
 		selectedPosts[i], selectedPosts[j] = selectedPosts[j], selectedPosts[i]
 	}
 
+	// Map usernames
+	usernameLookup := make(map[string]string)
+	resolveUser := func(id string) string {
+		if cached, ok := usernameLookup[id]; ok {
+			return cached
+		}
+		u, err := p.API.GetUser(id)
+		if err != nil {
+			return "user_" + id[:6]
+		}
+		usernameLookup[id] = u.Username
+		return u.Username
+	}
+
 	// Send each message separately in chronological order
 	for _, post := range selectedPosts {
-		msgText := post.Message
+		author := resolveUser(post.UserId)
+		postTime := time.UnixMilli(post.CreateAt).UTC().Format("Jan 02, 15:04")
 
-		// If the message has file IDs, append markdown preview embeds/links
+		// Indent original message text
+		var msgLines []string
+		lines := strings.Split(post.Message, "\n")
+		for _, line := range lines {
+			msgLines = append(msgLines, "> "+line)
+		}
+
+		// If the message has file IDs, append markdown preview embeds/links inside the blockquote
 		if len(post.FileIds) > 0 {
-			var fileLinks []string
 			for _, fileID := range post.FileIds {
 				fileInfo, fileInfoErr := p.API.GetFileInfo(fileID)
 				if fileInfoErr == nil && fileInfo != nil {
 					if strings.HasPrefix(fileInfo.MimeType, "image/") {
-						fileLinks = append(fileLinks, fmt.Sprintf("\n![image](/api/v4/files/%s)", fileID))
+						msgLines = append(msgLines, fmt.Sprintf("> \n> ![image](/api/v4/files/%s)", fileID))
 					} else {
-						fileLinks = append(fileLinks, fmt.Sprintf("\n[Attachment Download](/api/v4/files/%s)", fileID))
+						msgLines = append(msgLines, fmt.Sprintf("> \n> [Attachment Download](/api/v4/files/%s)", fileID))
 					}
 				} else {
 					// Fallback if metadata resolution is unavailable
-					fileLinks = append(fileLinks, fmt.Sprintf("\n[Attachment](/api/v4/files/%s)", fileID))
+					msgLines = append(msgLines, fmt.Sprintf("> \n> [Attachment](/api/v4/files/%s)", fileID))
 				}
 			}
-			msgText = msgText + strings.Join(fileLinks, "")
 		}
 
 		// Prevent posting entirely blank messages
-		if strings.TrimSpace(msgText) == "" {
-			msgText = "*[Empty Message]*"
+		if len(msgLines) == 0 || (len(msgLines) == 1 && msgLines[0] == "> ") {
+			msgLines = []string{"> *[Empty Message]*"}
 		}
+
+		finalMsgText := fmt.Sprintf("🔄 **Forwarded from @%s** [%s]:\n%s", author, postTime, strings.Join(msgLines, "\n"))
 
 		// 3. Post to Channels
 		for _, chanID := range destChannelIDs {
@@ -150,7 +172,7 @@ func (p *Plugin) ExecuteForwardPipeline(triggerUserID, srcPostID string, num, sk
 			newPost := &model.Post{
 				ChannelId: chanID,
 				UserId:    triggerUserID,
-				Message:   msgText,
+				Message:   finalMsgText,
 				FileIds:   post.FileIds, // Keep native attachment bindings
 			}
 			if _, createErr := p.API.CreatePost(newPost); createErr != nil {
@@ -171,7 +193,7 @@ func (p *Plugin) ExecuteForwardPipeline(triggerUserID, srcPostID string, num, sk
 			newPost := &model.Post{
 				ChannelId: dmChannel.Id,
 				UserId:    triggerUserID,
-				Message:   msgText,
+				Message:   finalMsgText,
 				FileIds:   post.FileIds, // Keep native attachment bindings
 			}
 			if _, createErr := p.API.CreatePost(newPost); createErr != nil {
