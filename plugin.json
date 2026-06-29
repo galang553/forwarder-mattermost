@@ -1,0 +1,17 @@
+{
+  "id": "com.exakarya.message-forwarder",
+  "name": "Message Forwarder",
+  "description": "Native Mattermost plugin to batch-forward recent messages.",
+  "version": "1.0.0",
+  "min_server_version": "7.8.0",
+  "server": {
+    "executables": {
+      "linux-amd64": "server/dist/plugin-linux-amd64",
+      "darwin-amd64": "server/dist/plugin-darwin-amd64",
+      "windows-amd64": "server/dist/plugin-windows-amd64.exe"
+    }
+  },
+  "webapp": {
+    "bundle_path": "webapp/dist/main.js"
+  }
+}
