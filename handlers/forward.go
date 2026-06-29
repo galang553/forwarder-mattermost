@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -10,7 +12,7 @@ import (
 	"forwarder-mattermost/mattermost"
 )
 
-func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUserID string, num, skip int, destChannelID, destUserID string) error {
+func ExecuteForwardPipeline(client *mattermost.Client, db *sql.DB, srcChannelID, triggerUserID string, num, skip int, destChannelID, destUserID string) error {
 	log.Printf("[INFO] Starting ExecuteForwardPipeline. SourceChannel: %s, Initiator: %s, MessageCountRequested: %d, SkipCountRequested: %d", srcChannelID, triggerUserID, num, skip)
 
 	srcChannel, err := client.GetChannel(srcChannelID)
@@ -25,12 +27,30 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 		fetchLimit = 100
 	}
 	log.Printf("[INFO] Fetching posts from source channel. Limit: %d", fetchLimit)
-	postList, err := client.GetPosts(srcChannelID, fetchLimit)
-	if err != nil {
-		if strings.Contains(err.Error(), "status 403") {
-			return fmt.Errorf("the bot does not have permission to read messages in this channel. If this is a Private Channel, please invite the bot account to this channel first. (Note: Bots cannot read private Direct Message chats between other users)")
+	
+	var postList *mattermost.PostList
+	var fetchErr error
+
+	postList, fetchErr = client.GetPosts(srcChannelID, fetchLimit)
+	if fetchErr != nil && db != nil {
+		log.Printf("[INFO] REST API posts fetch failed with error (%v). Attempting PostgreSQL database bypass...", fetchErr)
+		
+		var dbErr error
+		postList, dbErr = FetchPostsFromDB(db, srcChannelID, fetchLimit)
+		if dbErr != nil {
+			log.Printf("[ERROR] PostgreSQL database bypass also failed: %v", dbErr)
+			if strings.Contains(fetchErr.Error(), "status 403") {
+				return fmt.Errorf("the bot does not have permission to read messages in this channel and DB fallback failed. If this is a Private Channel, please invite the bot account to this channel first. (Note: Bots cannot read private Direct Message chats between other users)")
+			}
+			return fmt.Errorf("failed to fetch posts: %w", fetchErr)
 		}
-		return fmt.Errorf("failed to fetch posts: %w", err)
+		log.Printf("[INFO] Successfully bypassed API permissions and retrieved %d posts from PostgreSQL database!", len(postList.Posts))
+		fetchErr = nil
+	} else if fetchErr != nil {
+		if strings.Contains(fetchErr.Error(), "status 403") {
+			return fmt.Errorf("the bot does not have permission to read messages in this channel and no DB fallback is configured. If this is a Private Channel, please invite the bot account to this channel first. (Note: Bots cannot read private Direct Message chats between other users)")
+		}
+		return fmt.Errorf("failed to fetch posts: %w", fetchErr)
 	}
 
 	var userPosts []mattermost.Post
@@ -101,6 +121,7 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("### 🔄 Forwarded messages from **~%s** (requested by @%s):\n\n", srcChannel.DisplayName, triggerUsername))
 
+	var fileIDs []string
 	for _, p := range selectedPosts {
 		author, ok := usernameLookup[p.UserID]
 		if !ok {
@@ -121,6 +142,13 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 			buffer.WriteString(fmt.Sprintf("> %s\n", line))
 		}
 		buffer.WriteString("> \n")
+
+		// Collect file attachments (Mattermost limits to 5 files per post)
+		for _, fileID := range p.FileIDs {
+			if len(fileIDs) < 5 {
+				fileIDs = append(fileIDs, fileID)
+			}
+		}
 	}
 
 	finalMessage := strings.TrimSuffix(buffer.String(), "> \n")
@@ -152,8 +180,8 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 		}
 	}
 
-	log.Printf("[INFO] Sending consolidated forwarded message to target channel %s...", targetChannelID)
-	err = client.CreatePost(targetChannelID, finalMessage)
+	log.Printf("[INFO] Sending consolidated forwarded message with %d attachments to target channel %s...", len(fileIDs), targetChannelID)
+	err = client.CreatePost(targetChannelID, finalMessage, fileIDs)
 	if err != nil {
 		return fmt.Errorf("failed to send forwarded message to destination: %w", err)
 	}
@@ -169,4 +197,52 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	}
 
 	return nil
+}
+
+func FetchPostsFromDB(db *sql.DB, channelID string, limit int) (*mattermost.PostList, error) {
+	query := `
+		SELECT id, createat, userid, channelid, message, type, fileids 
+		FROM posts 
+		WHERE channelid = $1 AND deleteat = 0 
+		ORDER BY createat DESC 
+		LIMIT $2`
+	
+	rows, err := db.Query(query, channelID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	postList := &mattermost.PostList{
+		Order: []string{},
+		Posts: make(map[string]mattermost.Post),
+	}
+
+	for rows.Next() {
+		var p mattermost.Post
+		var fileIdsStr string
+		err := rows.Scan(&p.ID, &p.CreateAt, &p.UserID, &p.ChannelID, &p.Message, &p.Type, &fileIdsStr)
+		if err != nil {
+			return nil, err
+		}
+
+		p.FileIDs = []string{}
+		if fileIdsStr != "" && fileIdsStr != "[]" {
+			var ids []string
+			if jsonErr := json.Unmarshal([]byte(fileIdsStr), &ids); jsonErr == nil {
+				p.FileIDs = ids
+			} else {
+				log.Printf("[WARN] Failed to unmarshal fileids string %q: %v", fileIdsStr, jsonErr)
+			}
+		}
+
+		postList.Order = append(postList.Order, p.ID)
+		postList.Posts[p.ID] = p
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return postList, nil
 }

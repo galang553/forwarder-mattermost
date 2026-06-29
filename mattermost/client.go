@@ -81,11 +81,14 @@ func (c *Client) CreateDirectChannel(userID1, userID2 string) (string, error) {
 	return channel.ID, nil
 }
 
-func (c *Client) CreatePost(channelID, message string) error {
+func (c *Client) CreatePost(channelID, message string, fileIDs []string) error {
 	url := fmt.Sprintf("%s/api/v4/posts", c.BaseURL)
-	payload := map[string]string{
+	payload := map[string]interface{}{
 		"channel_id": channelID,
 		"message":    message,
+	}
+	if len(fileIDs) > 0 {
+		payload["file_ids"] = fileIDs
 	}
 	return c.post(url, payload, nil)
 }

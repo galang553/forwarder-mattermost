@@ -11,9 +11,17 @@ type Config struct {
 	MattermostURL     string
 	BotToken          string
 	SlashCommandToken string
-	ServerURL         string
+	ServerURL         string // URL of this service, used for dialog submission callback
+
+	// Database config
+	DBHost     string
+	DBPort     string
+	DBUser     string
+	DBPassword string
+	DBName     string
 }
 
+// LoadConfig reads variables from environment and performs basic validation
 func LoadConfig() Config {
 	cfg := Config{
 		Port:              getEnv("PORT", "8080"),
@@ -21,6 +29,12 @@ func LoadConfig() Config {
 		BotToken:          getEnv("MATTERMOST_BOT_TOKEN", ""),
 		SlashCommandToken: getEnv("SLASH_COMMAND_TOKEN", ""),
 		ServerURL:         strings.TrimSuffix(getEnv("SERVER_URL", "http://localhost:8080"), "/"),
+
+		DBHost:     getEnv("DB_HOST", "mattermost-db"),
+		DBPort:     getEnv("DB_PORT", "5432"),
+		DBUser:     getEnv("DB_USER", "mmuser"),
+		DBPassword: getEnv("DB_PASSWORD", "mostest"),
+		DBName:     getEnv("DB_NAME", "mattermost"),
 	}
 
 	if cfg.MattermostURL == "" {

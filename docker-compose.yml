@@ -7,3 +7,10 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    networks:
+      - mattermost_network
+
+networks:
+  mattermost_network:
+    name: mattermost_mattermost_network
+    external: true

@@ -34,7 +34,7 @@ func TestHandleSlashCommand(t *testing.T) {
 		SlashCommandToken: "command-secret-token",
 	}
 	client := mattermost.NewClient(cfg.MattermostURL, cfg.BotToken)
-	hCtx := NewHandlerContext(cfg, client)
+	hCtx := NewHandlerContext(cfg, client, nil)
 
 	form := url.Values{}
 	form.Set("token", "command-secret-token")
@@ -73,7 +73,7 @@ func TestHandleDialogSubmissionValidation(t *testing.T) {
 		BotToken:      "mock-token",
 	}
 	client := mattermost.NewClient(cfg.MattermostURL, cfg.BotToken)
-	hCtx := NewHandlerContext(cfg, client)
+	hCtx := NewHandlerContext(cfg, client, nil)
 
 	tests := []struct {
 		name           string

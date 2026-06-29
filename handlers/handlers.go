@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,12 +17,14 @@ import (
 type HandlerContext struct {
 	Config config.Config
 	Client *mattermost.Client
+	DB     *sql.DB
 }
 
-func NewHandlerContext(cfg config.Config, client *mattermost.Client) *HandlerContext {
+func NewHandlerContext(cfg config.Config, client *mattermost.Client, db *sql.DB) *HandlerContext {
 	return &HandlerContext{
 		Config: cfg,
 		Client: client,
+		DB:     db,
 	}
 }
 

@@ -56,12 +56,13 @@ type ChannelMember struct {
 }
 
 type Post struct {
-	ID        string `json:"id"`
-	CreateAt  int64  `json:"create_at"`
-	UserID    string `json:"user_id"`
-	ChannelID string `json:"channel_id"`
-	Message   string `json:"message"`
-	Type      string `json:"type"`
+	ID        string   `json:"id"`
+	CreateAt  int64    `json:"create_at"`
+	UserID    string   `json:"user_id"`
+	ChannelID string   `json:"channel_id"`
+	Message   string   `json:"message"`
+	Type      string   `json:"type"`
+	FileIDs   []string `json:"file_ids,omitempty"`
 }
 
 type PostList struct {
