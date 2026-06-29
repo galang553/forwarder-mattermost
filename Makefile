@@ -26,3 +26,4 @@ package: build-server build-webapp
 
 clean:
 	rm -rf server/dist webapp/dist dist
+

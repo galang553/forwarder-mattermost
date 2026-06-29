@@ -19,6 +19,10 @@ go.work.sum
 # Local environment variables
 .env
 .env.local
+webapp/node_modules/
+webapp/dist/
+
+server/dist/
 
 # IDE configurations
 .idea/
