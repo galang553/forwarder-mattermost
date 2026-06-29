@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -130,6 +131,7 @@ func (c *Client) get(url string, target interface{}) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("[ERROR] Mattermost API GET %s failed (Status %d): %s", url, resp.StatusCode, string(bodyBytes))
 		return fmt.Errorf("GET error status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
@@ -157,6 +159,7 @@ func (c *Client) post(url string, body interface{}, target interface{}) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBodyBytes, _ := io.ReadAll(resp.Body)
+		log.Printf("[ERROR] Mattermost API POST %s failed (Status %d): %s", url, resp.StatusCode, string(respBodyBytes))
 		return fmt.Errorf("POST error status %d: %s", resp.StatusCode, string(respBodyBytes))
 	}
 

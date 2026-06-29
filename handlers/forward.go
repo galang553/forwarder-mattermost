@@ -11,17 +11,19 @@ import (
 )
 
 func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUserID string, num int, destChannelID, destUserID string) error {
-	log.Printf("Executing forward: source=%s, user=%s, count=%d, dest_chan=%s, dest_user=%s", srcChannelID, triggerUserID, num, destChannelID, destUserID)
+	log.Printf("[INFO] Starting ExecuteForwardPipeline. SourceChannel: %s, Initiator: %s, MessageCountRequested: %d", srcChannelID, triggerUserID, num)
 
 	srcChannel, err := client.GetChannel(srcChannelID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch source channel details: %w", err)
 	}
+	log.Printf("[INFO] Source channel resolved: %s (Type: %s)", srcChannel.DisplayName, srcChannel.Type)
 
 	fetchLimit := num + 10
 	if fetchLimit > 100 {
 		fetchLimit = 100
 	}
+	log.Printf("[INFO] Fetching posts from source channel. Limit: %d", fetchLimit)
 	postList, err := client.GetPosts(srcChannelID, fetchLimit)
 	if err != nil {
 		return fmt.Errorf("failed to fetch posts: %w", err)
@@ -41,11 +43,13 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 			break
 		}
 	}
+	log.Printf("[INFO] Found %d actual user messages out of %d fetched items", len(userPosts), len(postList.Order))
 
 	if len(userPosts) == 0 {
 		return fmt.Errorf("no user messages found to forward in the channel")
 	}
 
+	// Reverse the order so they are sorted chronologically (oldest first)
 	for i, j := 0, len(userPosts)-1; i < j; i, j = i+1, j-1 {
 		userPosts[i], userPosts[j] = userPosts[j], userPosts[i]
 	}
@@ -61,9 +65,10 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 		userIDs = append(userIDs, id)
 	}
 
+	log.Printf("[INFO] Resolving usernames for %d unique User IDs...", len(userIDs))
 	users, err := client.GetUsersByIDs(userIDs)
 	if err != nil {
-		log.Printf("Warning: failed to resolve user names: %v. Falling back to raw User IDs.", err)
+		log.Printf("[WARN] Failed to resolve user names: %v. Falling back to raw User IDs.", err)
 		users = []mattermost.User{}
 	}
 
@@ -76,6 +81,7 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	if !ok {
 		triggerUsername = "unknown"
 	}
+	log.Printf("[INFO] Action requested by @%s", triggerUsername)
 
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("### 🔄 Forwarded messages from **~%s** (requested by @%s):\n\n", srcChannel.DisplayName, triggerUsername))
@@ -102,6 +108,7 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 	var destName string
 
 	if destUserID != "" {
+		log.Printf("[INFO] Target is a Direct Message to UserID: %s. Resolving DM channel...", destUserID)
 		botID, err := client.GetBotUserID()
 		if err != nil {
 			return fmt.Errorf("failed to get bot user ID: %w", err)
@@ -112,24 +119,32 @@ func ExecuteForwardPipeline(client *mattermost.Client, srcChannelID, triggerUser
 		}
 		targetChannelID = dmChannelID
 		destName = "Direct Message"
+		log.Printf("[INFO] DM channel resolved: %s", targetChannelID)
 	} else {
+		log.Printf("[INFO] Target is ChannelID: %s. Fetching details...", destChannelID)
 		destChan, err := client.GetChannel(destChannelID)
 		if err == nil {
 			destName = "~" + destChan.DisplayName
 		} else {
 			destName = "channel"
+			log.Printf("[WARN] Could not fetch target channel display name: %v", err)
 		}
 	}
 
+	log.Printf("[INFO] Sending consolidated forwarded message to target channel %s...", targetChannelID)
 	err = client.CreatePost(targetChannelID, finalMessage)
 	if err != nil {
 		return fmt.Errorf("failed to send forwarded message to destination: %w", err)
 	}
+	log.Printf("[INFO] Consolidated message posted successfully.")
 
 	successMessage := fmt.Sprintf("✅ Successfully forwarded the last %d message(s) to **%s**.", len(userPosts), destName)
+	log.Printf("[INFO] Sending ephemeral success confirmation to initiator user...")
 	err = client.CreateEphemeralPost(triggerUserID, srcChannelID, successMessage)
 	if err != nil {
-		log.Printf("Warning: failed to send confirmation ephemeral post: %v", err)
+		log.Printf("[WARN] Failed to send confirmation ephemeral post: %v", err)
+	} else {
+		log.Printf("[INFO] Ephemeral confirmation sent successfully. Pipeline complete.")
 	}
 
 	return nil

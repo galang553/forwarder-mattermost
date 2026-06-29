@@ -56,6 +56,8 @@ func (h *HandlerContext) HandleSlashCommand(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	log.Printf("[INFO] Received slash command /forward. SourceChannel: %s, User: %s, TriggerID: %s", sourceChannelID, triggeringUserID, triggerID)
+
 	stateBytes, err := json.Marshal(mattermost.DialogState{
 		SourceChannelID:  sourceChannelID,
 		TriggeringUserID: triggeringUserID,
@@ -106,14 +108,18 @@ func (h *HandlerContext) HandleSlashCommand(w http.ResponseWriter, r *http.Reque
 	}
 
 	go func() {
+		log.Printf("[INFO] Attempting to open interactive dialog in Mattermost for trigger_id: %s...", triggerID)
 		if err := h.Client.OpenDialog(dialogReq); err != nil {
-			log.Printf("Error opening interactive dialog: %v", err)
+			log.Printf("[ERROR] Failed to open interactive dialog: %v", err)
+		} else {
+			log.Printf("[INFO] Successfully opened interactive dialog in Mattermost for trigger_id: %s", triggerID)
 		}
 	}()
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(""))
 }
+
 func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -134,6 +140,8 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("[INFO] Received dialog submission from User: %s", submissionReq.UserID)
 
 	errors := make(map[string]string)
 	numStr := submissionReq.Submission["num_messages"]
@@ -156,6 +164,7 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	}
 
 	if len(errors) > 0 {
+		log.Printf("[WARN] Dialog validation failed for User %s: %v", submissionReq.UserID, errors)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{"errors": errors})
@@ -165,16 +174,17 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("{}"))
+
 	var state mattermost.DialogState
 	if err := json.Unmarshal([]byte(submissionReq.State), &state); err != nil {
-		log.Printf("Error parsing state from submission: %v", err)
+		log.Printf("[ERROR] Error parsing state from submission: %v", err)
 		return
 	}
 
 	go func() {
 		err := ExecuteForwardPipeline(h.Client, state.SourceChannelID, state.TriggeringUserID, num, destChannel, destUser)
 		if err != nil {
-			log.Printf("Failed to execute forwarding pipeline: %v", err)
+			log.Printf("[ERROR] Failed to execute forwarding pipeline: %v", err)
 			_ = h.Client.CreateEphemeralPost(state.TriggeringUserID, state.SourceChannelID, fmt.Sprintf("⚠️ Message forwarding failed: %v", err))
 		}
 	}()
