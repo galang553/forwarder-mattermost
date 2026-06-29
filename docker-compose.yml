@@ -1,0 +1,9 @@
+services:
+  forwarder:
+    build: .
+    container_name: mattermost-forwarder
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
