@@ -144,16 +144,48 @@ func (h *HandlerContext) HandleDialogSubmission(w http.ResponseWriter, r *http.R
 	log.Printf("[INFO] Received dialog submission from User: %s", submissionReq.UserID)
 
 	errors := make(map[string]string)
-	numStr := submissionReq.Submission["num_messages"]
-	num, err := strconv.Atoi(strings.TrimSpace(numStr))
-	if err != nil || num <= 0 {
-		errors["num_messages"] = "Please enter a valid positive number."
-	} else if num > 50 {
-		errors["num_messages"] = "You can forward a maximum of 50 messages at a time."
+
+	getSubmissionStr := func(key string) string {
+		if val, ok := submissionReq.Submission[key]; ok && val != nil {
+			if str, ok := val.(string); ok {
+				return strings.TrimSpace(str)
+			}
+			return fmt.Sprintf("%v", val)
+		}
+		return ""
 	}
 
-	destChannel := submissionReq.Submission["dest_channel_id"]
-	destUser := submissionReq.Submission["dest_user_id"]
+	var num int
+	numVal, hasNum := submissionReq.Submission["num_messages"]
+	if !hasNum || numVal == nil {
+		errors["num_messages"] = "Please enter a valid positive number."
+	} else {
+		switch v := numVal.(type) {
+		case float64:
+			num = int(v)
+		case int:
+			num = v
+		case string:
+			var err error
+			num, err = strconv.Atoi(strings.TrimSpace(v))
+			if err != nil {
+				errors["num_messages"] = "Please enter a valid positive number."
+			}
+		default:
+			errors["num_messages"] = "Please enter a valid positive number."
+		}
+	}
+
+	if len(errors) == 0 {
+		if num <= 0 {
+			errors["num_messages"] = "Please enter a valid positive number."
+		} else if num > 50 {
+			errors["num_messages"] = "You can forward a maximum of 50 messages at a time."
+		}
+	}
+
+	destChannel := getSubmissionStr("dest_channel_id")
+	destUser := getSubmissionStr("dest_user_id")
 
 	if destChannel == "" && destUser == "" {
 		errors["dest_channel_id"] = "Select either a Destination Channel OR a Destination User."

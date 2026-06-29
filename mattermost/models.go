@@ -29,13 +29,13 @@ type OpenDialogRequest struct {
 }
 
 type DialogSubmissionRequest struct {
-	Type       string            `json:"type"`
-	CallbackID string            `json:"callback_id"`
-	State      string            `json:"state"`
-	UserID     string            `json:"user_id"`
-	ChannelID  string            `json:"channel_id"`
-	TeamID     string            `json:"team_id"`
-	Submission map[string]string `json:"submission"`
+	Type       string                 `json:"type"`
+	CallbackID string                 `json:"callback_id"`
+	State      string                 `json:"state"`
+	UserID     string                 `json:"user_id"`
+	ChannelID  string                 `json:"channel_id"`
+	TeamID     string                 `json:"team_id"`
+	Submission map[string]interface{} `json:"submission"`
 }
 
 type DialogState struct {
