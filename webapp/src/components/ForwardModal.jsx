@@ -140,8 +140,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
         const csrfToken = getCookie('MMCSRF');
         
         // Map UI indexes to Go backend logic:
-        // num_messages = count of messages in range
-        // skip_messages = count of messages between index 0 and endIdx (the newest selected post)
         const num = startIdx - endIdx + 1;
         const skip = endIdx;
 
@@ -206,7 +204,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
     };
 
     const containerStyle = {
-        width: '400px', // Compact width
+        width: '380px', // Compact width
         maxHeight: '90vh',
         backgroundColor: '#1E1E24',
         border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -453,16 +451,13 @@ const ForwardModal = ({ postId, store, onClose }) => {
         color: type === 'success' ? '#34D399' : '#F87171'
     });
 
-    // Render chronological slice of preview messages (oldest first, meaning higher index in `previewOrder` is displayed at the top)
     const renderPreviewPosts = () => {
         if (previewOrder.length === 0) return null;
-        
-        // Reverse order so it lists chronologically (oldest at the top)
         const chronoOrder = [...previewOrder].reverse();
 
         return chronoOrder.map(pid => {
             const post = previewPosts[pid];
-            if (!post || post.type !== '') return null; // skip system posts
+            if (!post || post.type !== '') return null;
             
             const idxInOrder = previewOrder.indexOf(pid);
             const isSelected = idxInOrder >= endIdx && idxInOrder <= startIdx;
@@ -484,7 +479,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
     return (
         <div style={modalOverlayStyle} onClick={onClose}>
             <div style={containerStyle} onClick={(e) => e.stopPropagation()}>
-                {/* Header */}
                 <div style={headerStyle}>
                     <h3 style={titleStyle}>
                         <span>🔄</span> Forward Message(s)
@@ -494,13 +488,10 @@ const ForwardModal = ({ postId, store, onClose }) => {
                     </button>
                 </div>
 
-                {/* Body */}
                 <div style={bodyStyle}>
-                    {/* Range Preview Board */}
                     <div style={formGroupStyle}>
                         <label style={labelStyle}>Selected Messages ({startIdx - endIdx + 1})</label>
                         <div style={previewBoardStyle}>
-                            {/* Older controls (above) */}
                             <div style={controlRowStyle}>
                                 <span style={{fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold'}}>Older Messages (Above)</span>
                                 <div style={btnGroupStyle}>
@@ -511,12 +502,10 @@ const ForwardModal = ({ postId, store, onClose }) => {
                                 </div>
                             </div>
 
-                            {/* Feed */}
                             <div style={scrollPreviewStyle}>
                                 {renderPreviewPosts()}
                             </div>
 
-                            {/* Newer controls (below) */}
                             <div style={controlRowBottomStyle}>
                                 <span style={{fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold'}}>Newer Messages (Below)</span>
                                 <div style={btnGroupStyle}>
@@ -529,7 +518,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Search */}
                     <input
                         type="text"
                         placeholder="Search channels or users..."
@@ -538,7 +526,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
 
-                    {/* Tabs */}
                     <div>
                         <div style={tabsContainerStyle}>
                             <button style={getTabStyle('channels')} onClick={() => setActiveTab('channels')}>
@@ -549,7 +536,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                             </button>
                         </div>
 
-                        {/* List */}
                         <div style={listStyle}>
                             {activeTab === 'channels' ? (
                                 filteredChannels.length === 0 ? (
@@ -563,7 +549,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
                                                 type="checkbox"
                                                 style={checkboxStyle}
                                                 checked={!!selectedChannels[c.id]}
-                                                onChange={() => {}} // handled by row click
+                                                onChange={() => {}}
                                             />
                                             <span style={itemNameStyle}>~{c.display_name || c.name}</span>
                                         </div>
@@ -581,7 +567,7 @@ const ForwardModal = ({ postId, store, onClose }) => {
                                                 type="checkbox"
                                                 style={checkboxStyle}
                                                 checked={!!selectedUsers[u.id]}
-                                                onChange={() => {}} // handled by row click
+                                                onChange={() => {}}
                                             />
                                             <span style={itemNameStyle}>@{u.username} ({u.first_name} {u.last_name})</span>
                                         </div>
@@ -591,7 +577,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Alert Message */}
                     {statusMessage && (
                         <div style={alertStyle(statusMessage.type)}>
                             {statusMessage.text}
@@ -599,7 +584,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                     )}
                 </div>
 
-                {/* Footer */}
                 <div style={footerStyle}>
                     <button style={cancelButtonStyle} onClick={onClose} disabled={loading}>
                         Cancel
