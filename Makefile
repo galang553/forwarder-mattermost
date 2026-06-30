@@ -15,14 +15,14 @@ build-webapp:
 
 package: build-server build-webapp
 	@echo "Creating plugin package..."
-	mkdir -p dist/com.exakarya.message-forwarder
-	cp plugin.json dist/com.exakarya.message-forwarder/
-	mkdir -p dist/com.exakarya.message-forwarder/server/dist
-	cp server/dist/plugin-* dist/com.exakarya.message-forwarder/server/dist/
-	mkdir -p dist/com.exakarya.message-forwarder/webapp/dist
-	cp webapp/dist/main.js dist/com.exakarya.message-forwarder/webapp/dist/
-	cd dist && tar -czf com.exakarya.message-forwarder.tar.gz com.exakarya.message-forwarder
-	@echo "Plugin packaged successfully: dist/com.exakarya.message-forwarder.tar.gz"
+	mkdir -p dist/com.rivestudy.message-forwarder
+	cp plugin.json dist/com.rivestudy.message-forwarder/
+	mkdir -p dist/com.rivestudy.message-forwarder/server/dist
+	cp server/dist/plugin-* dist/com.rivestudy.message-forwarder/server/dist/
+	mkdir -p dist/com.rivestudy.message-forwarder/webapp/dist
+	cp webapp/dist/main.js dist/com.rivestudy.message-forwarder/webapp/dist/
+	cd dist && tar -czf com.rivestudy.message-forwarder.tar.gz com.rivestudy.message-forwarder
+	@echo "Plugin packaged successfully: dist/com.rivestudy.message-forwarder.tar.gz"
 
 clean:
 	rm -rf server/dist webapp/dist dist

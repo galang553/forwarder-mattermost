@@ -1,7 +1,7 @@
 {
-  "id": "com.exakarya.message-forwarder",
-  "name": "Message Forwarder",
-  "description": "Native Mattermost plugin to batch-forward recent messages.",
+  "id": "com.rivestudy.message-forwarder",
+  "name": "Message Forwarder by rivestudy",
+  "description": "Native Mattermost plugin to batch-forward recent messages. built with love by https://github.com/rivestudy",
   "version": "1.0.0",
   "min_server_version": "7.8.0",
   "server": {

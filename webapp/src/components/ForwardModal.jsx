@@ -8,6 +8,307 @@ const getCookie = (name) => {
     return '';
 };
 
+// CSS Styles that dynamically map class names to Mattermost active theme preferences
+const themeStyles = `
+    .mm-forwarder-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.65);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .mm-forwarder-modal {
+        width: 820px;
+        max-height: 90vh;
+        background-color: var(--center-channel-bg, #1e1e24);
+        color: var(--center-channel-color, #ffffff);
+        border: 1px solid var(--center-channel-color-12, rgba(127, 127, 127, 0.15)) !important;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        font-family: inherit;
+        overflow: hidden;
+    }
+    .mm-forwarder-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1)) !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .mm-forwarder-header-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--center-channel-color, #ffffff);
+    }
+    .mm-forwarder-close-btn {
+        background: transparent;
+        border: 0;
+        color: var(--center-channel-color, #ffffff);
+        opacity: 0.4;
+        cursor: pointer;
+        font-size: 24px;
+        padding: 0;
+        line-height: 1;
+        transition: opacity 0.2s;
+    }
+    .mm-forwarder-close-btn:hover {
+        opacity: 1;
+    }
+    .mm-forwarder-body {
+        padding: 24px;
+        overflow-y: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+    }
+    .mm-forwarder-grid {
+        display: flex;
+        gap: 24px;
+        height: 520px;
+        min-height: 0;
+    }
+    .mm-forwarder-col-preview {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+    }
+    .mm-forwarder-col-controls {
+        width: 360px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 0;
+    }
+    .mm-forwarder-preview-box {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        border-radius: 12px;
+        padding: 2px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-color: rgba(0, 0, 0, 0.01);
+        border: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1)) !important;
+        /* Smooth gradient fade-out at the top and bottom edge (height of ~50px) */
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 12%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%);
+        -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 12%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%);
+    }
+    .mm-forwarder-preview-item-selected {
+        background-color: var(--center-channel-color-04, rgba(127, 127, 127, 0.04));
+        border: 1px solid var(--button-bg, #7c3aed) !important;
+        border-radius: 8px;
+        padding: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .mm-forwarder-preview-item-unselected {
+        background-color: var(--center-channel-color-02, rgba(127, 127, 127, 0.02));
+        border: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1)) !important;
+        border-radius: 8px;
+        padding: 10px;
+        cursor: pointer;
+        opacity: 0.45;
+        transition: all 0.2s;
+    }
+    .mm-forwarder-preview-item-unselected:hover {
+        opacity: 0.85;
+        background-color: var(--center-channel-color-04, rgba(127, 127, 127, 0.04));
+    }
+    .mm-forwarder-fullname {
+        font-weight: 700;
+        color: var(--button-bg, #7c3aed);
+    }
+    .mm-forwarder-subtext {
+        font-size: 10px;
+        color: var(--center-channel-color, #ffffff);
+        opacity: 0.45;
+    }
+    .mm-forwarder-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--center-channel-color, #ffffff);
+        opacity: 0.55;
+    }
+    .mm-forwarder-btn-primary {
+        padding: 10px 24px;
+        background: var(--button-bg, #7c3aed) !important;
+        color: var(--button-color, #ffffff) !important;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: opacity 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .mm-forwarder-btn-primary:hover {
+        opacity: 0.9;
+    }
+    .mm-forwarder-btn-primary:disabled {
+        opacity: 0.3 !important;
+        cursor: not-allowed;
+    }
+    .mm-forwarder-btn-secondary {
+        background-color: var(--center-channel-color-04, rgba(127, 127, 127, 0.04));
+        border: 1px solid var(--center-channel-color-12, rgba(127, 127, 127, 0.15)) !important;
+        color: var(--center-channel-color, #ffffff) !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 28px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .mm-forwarder-btn-secondary:hover:not(:disabled) {
+        background-color: var(--center-channel-color-08, rgba(127, 127, 127, 0.08)) !important;
+    }
+    .mm-forwarder-btn-secondary:disabled {
+        opacity: 0.3 !important;
+        cursor: not-allowed;
+    }
+    .mm-forwarder-input {
+        width: 100%;
+        background-color: var(--center-channel-color-04, rgba(127, 127, 127, 0.04)) !important;
+        border: 1px solid var(--center-channel-color-12, rgba(127, 127, 127, 0.15)) !important;
+        color: var(--center-channel-color, #ffffff) !important;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 14px;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+    }
+    .mm-forwarder-input:focus {
+        border-color: var(--button-bg, #7c3aed) !important;
+        outline: none;
+    }
+    .mm-forwarder-divider {
+        width: 1px;
+        background-color: var(--center-channel-color-12, rgba(127, 127, 127, 0.15));
+        align-self: stretch;
+    }
+    .mm-forwarder-list-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--center-channel-color-04, rgba(127, 127, 127, 0.04));
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .mm-forwarder-list-item:hover {
+        background-color: var(--center-channel-color-08, rgba(127, 127, 127, 0.08));
+    }
+    .mm-forwarder-list-container {
+        height: 390px; /* Lock height so list size is fixed, never pushes layout */
+        overflow-y: auto;
+        border: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1));
+        background-color: var(--center-channel-color-02, rgba(127, 127, 127, 0.02));
+        border-radius: 12px;
+        min-height: 0;
+    }
+    .mm-forwarder-header-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1)) !important;
+        margin-bottom: 8px;
+    }
+    .mm-forwarder-tab-active {
+        padding: 8px 16px;
+        background: transparent;
+        border-top: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 2px solid var(--button-bg, #7c3aed) !important;
+        color: var(--center-channel-color, #ffffff) !important;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .mm-forwarder-tab-inactive {
+        padding: 8px 16px;
+        background: transparent;
+        border-top: 0;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 2px solid transparent !important;
+        color: var(--center-channel-color, #ffffff) !important;
+        opacity: 0.45;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .mm-forwarder-tab-inactive:hover {
+        opacity: 1;
+    }
+    .mm-forwarder-checkbox {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+        accent-color: var(--button-bg, #7c3aed);
+    }
+    .mm-forwarder-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--center-channel-color-08, rgba(127, 127, 127, 0.1)) !important;
+        background-color: rgba(0, 0, 0, 0.01);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+    .mm-forwarder-cancel-btn {
+        padding: 10px 20px;
+        background: transparent;
+        border: 1px solid var(--center-channel-color-12, rgba(127, 127, 127, 0.15)) !important;
+        color: var(--center-channel-color, #ffffff) !important;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+    .mm-forwarder-cancel-btn:hover:not(:disabled) {
+        background-color: var(--center-channel-color-08, rgba(127, 127, 127, 0.08));
+    }
+    .mm-forwarder-alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid;
+    }
+    .mm-forwarder-alert-success {
+        background-color: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+    }
+    .mm-forwarder-alert-error {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.2);
+        color: #f87171;
+    }
+`;
+
 const ForwardModal = ({ postId, store, onClose }) => {
     const [channels, setChannels] = React.useState([]);
     const [users, setUsers] = React.useState([]);
@@ -16,8 +317,9 @@ const ForwardModal = ({ postId, store, onClose }) => {
     const [selectedChannels, setSelectedChannels] = React.useState({});
     const [selectedUsers, setSelectedUsers] = React.useState({});
     
-    const [numMessages, setNumMessages] = React.useState(1);
-    const [skipMessages, setSkipMessages] = React.useState(0);
+    // Toggle state: Map of postID -> boolean (trigger postId is checked by default)
+    const [selectedPosts, setSelectedPosts] = React.useState({ [postId]: true });
+    const [lastClickedId, setLastClickedId] = React.useState(postId);
 
     // Live preview states
     const [previewPosts, setPreviewPosts] = React.useState({});
@@ -54,12 +356,6 @@ const ForwardModal = ({ postId, store, onClose }) => {
                 if (postsData && Array.isArray(postsData.order)) {
                     setPreviewPosts(postsData.posts || {});
                     setPreviewOrder(postsData.order);
-                    
-                    // Align skip index to the selected post position if possible
-                    const idx = postsData.order.indexOf(postId);
-                    if (idx !== -1) {
-                        setSkipMessages(idx);
-                    }
                 }
             } catch (err) {
                 console.error("Failed to load targets or preview:", err);
@@ -82,6 +378,26 @@ const ForwardModal = ({ postId, store, onClose }) => {
         }
     };
 
+    const togglePostSelection = (id) => {
+        setSelectedPosts(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
+        setLastClickedId(id);
+    };
+
+    // Auto-scroll logic: centers on postId on load, and scrolls lastClickedId into view upon list expansion
+    React.useEffect(() => {
+        if (lastClickedId) {
+            setTimeout(() => {
+                const el = document.getElementById(`post-card-${lastClickedId}`);
+                if (el) {
+                    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }, 100);
+        }
+    }, [lastClickedId]);
+
     const handleForward = async () => {
         const finalChannels = Object.keys(selectedChannels).filter(id => selectedChannels[id]);
         const finalUsers = Object.keys(selectedUsers).filter(id => selectedUsers[id]);
@@ -91,13 +407,26 @@ const ForwardModal = ({ postId, store, onClose }) => {
             return;
         }
 
+        const selectedIds = Object.keys(selectedPosts).filter(id => selectedPosts[id]);
+        if (selectedIds.length === 0) {
+            setStatusMessage({ type: 'error', text: 'Please select at least one message to forward.' });
+            return;
+        }
+
+        // Sort selectedIds in chronological order (oldest first).
+        // Since previewOrder is newest to oldest, we sort based on b's index - a's index in previewOrder.
+        selectedIds.sort((a, b) => {
+            const idxA = previewOrder.indexOf(a);
+            const idxB = previewOrder.indexOf(b);
+            return idxB - idxA;
+        });
+
         setLoading(true);
         setStatusMessage(null);
-
         const csrfToken = getCookie('MMCSRF');
 
         try {
-            const resp = await fetch('/plugins/com.exakarya.message-forwarder/forward', {
+            const resp = await fetch('/plugins/com.rivestudy.message-forwarder/forward', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -105,16 +434,41 @@ const ForwardModal = ({ postId, store, onClose }) => {
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    post_id: postId,
-                    num_messages: parseInt(numMessages, 10),
-                    skip_messages: parseInt(skipMessages, 10),
+                    post_ids: selectedIds,
                     destination_channels: finalChannels,
                     destination_users: finalUsers
                 })
             });
 
             if (resp.ok) {
-                setStatusMessage({ type: 'success', text: 'Messages forwarded successfully!' });
+                setStatusMessage({ type: 'success', text: 'Messages forwarded successfully! Redirecting...' });
+                
+                // Redirect to target destination client-side
+                try {
+                    const state = store.getState();
+                    const teamId = state.entities.teams.currentTeamId;
+                    const currentTeam = state.entities.teams.teams[teamId];
+                    const teamName = currentTeam ? currentTeam.name : '';
+                    
+                    if (window.browserHistory && teamName) {
+                        if (finalChannels.length > 0) {
+                            const firstChanId = finalChannels[0];
+                            const targetChannel = channels.find(c => c.id === firstChanId);
+                            if (targetChannel) {
+                                window.browserHistory.push(`/${teamName}/channels/${targetChannel.name}`);
+                            }
+                        } else if (finalUsers.length > 0) {
+                            const firstUserId = finalUsers[0];
+                            const targetUser = users.find(u => u.id === firstUserId);
+                            if (targetUser) {
+                                window.browserHistory.push(`/${teamName}/messages/@${targetUser.username}`);
+                            }
+                        }
+                    }
+                } catch (navErr) {
+                    console.error("Navigation error:", navErr);
+                }
+
                 setTimeout(() => {
                     onClose();
                 }, 1500);
@@ -141,396 +495,262 @@ const ForwardModal = ({ postId, store, onClose }) => {
         ((u.first_name || u.last_name) && `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
-    const getUsername = (userId) => {
-        const u = users.find(user => user.id === userId);
-        if (u) return u.username;
+    const getUserDisplayName = (postUserId) => {
+        const u = users.find(user => user.id === postUserId);
         const state = store.getState();
-        if (state.entities.users.currentUserId === userId) {
-            return state.entities.users.profiles[userId]?.username || 'me';
+        const currentUserId = state.entities.users.currentUserId;
+        
+        let fullName = '';
+        let username = '';
+        
+        if (u) {
+            fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+            username = `@${u.username}`;
+        } else if (currentUserId === postUserId) {
+            const profile = state.entities.users?.profiles?.[postUserId];
+            if (profile) {
+                fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+                username = `@${profile.username}`;
+            } else {
+                username = '@me';
+            }
         }
-        return 'user_' + userId.slice(0, 4);
+        
+        return {
+            fullName: fullName || username || ('user_' + (postUserId ? postUserId.slice(0, 4) : 'unknown')),
+            username: fullName ? username : ''
+        };
     };
 
-    // Get the slice of posts that will be forwarded
-    const num = parseInt(numMessages, 10) || 1;
-    const skip = parseInt(skipMessages, 10) || 0;
-    const selectedSlice = previewOrder.slice(skip, skip + num);
-
-    // Centered modal styling objects with blur backdrop
-    const modalOverlayStyle = {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.65)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        animation: 'fadeIn 0.25s ease-out'
+    // Extract image file IDs if post contains image attachments
+    const getImageFileIds = (post) => {
+        if (!post || !post.file_ids || post.file_ids.length === 0) return [];
+        if (post.metadata && post.metadata.file_infos) {
+            return post.metadata.file_infos
+                .filter(info => info.mime_type && info.mime_type.startsWith('image/'))
+                .map(info => info.id);
+        }
+        return post.file_ids; // Fallback: try rendering all attachments
     };
 
-    const containerStyle = {
-        width: '520px',
-        maxHeight: '90vh',
-        backgroundColor: '#1E1E24',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '20px',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
-        display: 'flex',
-        flexDirection: 'column',
-        color: '#FFFFFF',
-        fontFamily: 'Inter, sans-serif',
-        overflow: 'hidden',
-    };
+    // Selected count
+    const selectedCount = Object.keys(selectedPosts).filter(id => selectedPosts[id]).length;
 
-    const headerStyle = {
-        padding: '18px 24px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-    };
+    // Filter the preview box messages dynamically centered on the current selection bounds.
+    // Ensure there are always at least 5 messages visible above the oldest selection
+    // and 5 messages visible below the newest selection.
+    const selectedIds = Object.keys(selectedPosts).filter(id => selectedPosts[id]);
+    const selectedIndices = selectedIds
+        .map(id => previewOrder.indexOf(id))
+        .filter(idx => idx !== -1);
 
-    const titleStyle = {
-        margin: 0,
-        fontSize: '18px',
-        fontWeight: '600',
-        color: '#FFFFFF',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-    };
+    let startIdx = 0;
+    let endIdx = previewOrder.length;
 
-    const closeButtonStyle = {
-        background: 'none',
-        border: 'none',
-        color: 'rgba(255, 255, 255, 0.4)',
-        cursor: 'pointer',
-        fontSize: '22px',
-        padding: 0,
-        lineHeight: 1,
-        transition: 'color 0.2s',
-    };
+    if (selectedIndices.length > 0) {
+        const minSelectedIdx = Math.min(...selectedIndices);
+        const maxSelectedIdx = Math.max(...selectedIndices);
+        
+        startIdx = Math.max(0, minSelectedIdx - 3);
+        // +4 to include maxSelectedIdx + 3 in slice (exclusive boundary)
+        endIdx = Math.min(previewOrder.length, maxSelectedIdx + 4);
+    } else {
+        // Fallback if nothing is selected (defaults around target postId)
+        const idx = previewOrder.indexOf(postId);
+        if (idx !== -1) {
+            startIdx = Math.max(0, idx - 3);
+            endIdx = Math.min(previewOrder.length, idx + 4);
+        }
+    }
 
-    const bodyStyle = {
-        padding: '24px',
-        overflowY: 'auto',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px'
-    };
-
-    const rowStyle = {
-        display: 'flex',
-        gap: '16px'
-    };
-
-    const formGroupStyle = {
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px'
-    };
-
-    const labelStyle = {
-        fontSize: '12px',
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        color: 'rgba(255, 255, 255, 0.5)',
-        letterSpacing: '0.5px'
-    };
-
-    const inputNumberStyle = {
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '8px',
-        padding: '10px 12px',
-        color: '#FFFFFF',
-        fontSize: '14px',
-        outline: 'none',
-        transition: 'border-color 0.2s',
-        width: '100%',
-        boxSizing: 'border-box'
-    };
-
-    const searchInputStyle = {
-        ...inputNumberStyle,
-        padding: '12px 16px',
-        borderRadius: '12px'
-    };
-
-    const tabsContainerStyle = {
-        display: 'flex',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-        marginBottom: '10px'
-    };
-
-    const getTabStyle = (tabName) => ({
-        padding: '12px 20px',
-        cursor: 'pointer',
-        fontWeight: '600',
-        fontSize: '14px',
-        borderBottom: activeTab === tabName ? '2px solid #7C3AED' : '2px solid transparent',
-        color: activeTab === tabName ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
-        transition: 'all 0.2s',
-        background: 'none',
-        borderLeft: 'none',
-        borderRight: 'none',
-        borderTop: 'none'
-    });
-
-    const listStyle = {
-        maxHeight: '150px',
-        overflowY: 'auto',
-        border: '1px solid rgba(255, 255, 255, 0.04)',
-        borderRadius: '12px',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)'
-    };
-
-    const itemStyle = {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 16px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-        cursor: 'pointer',
-        transition: 'background-color 0.2s'
-    };
-
-    const checkboxStyle = {
-        cursor: 'pointer',
-        width: '18px',
-        height: '18px',
-        accentColor: '#7C3AED',
-        borderRadius: '4px'
-    };
-
-    const itemNameStyle = {
-        fontSize: '14px',
-        fontWeight: '500'
-    };
-
-    // Live preview styling
-    const previewContainerStyle = {
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '12px',
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
-        padding: '10px',
-        maxHeight: '160px',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px'
-    };
-
-    const previewItemStyle = {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
-        borderRadius: '8px',
-        padding: '8px 12px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px'
-    };
-
-    const previewAuthorStyle = {
-        fontSize: '11px',
-        fontWeight: '700',
-        color: '#A78BFA'
-    };
-
-    const previewMsgStyle = {
-        fontSize: '13px',
-        color: '#E5E7EB',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word'
-    };
-
-    const footerStyle = {
-        padding: '20px 24px',
-        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '12px',
-        backgroundColor: '#16161A'
-    };
-
-    const cancelButtonStyle = {
-        padding: '12px 20px',
-        backgroundColor: 'transparent',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        color: '#FFFFFF',
-        borderRadius: '10px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '500',
-        transition: 'background-color 0.2s'
-    };
-
-    const submitButtonStyle = {
-        padding: '12px 24px',
-        background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
-        border: 'none',
-        color: '#FFFFFF',
-        borderRadius: '10px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '600',
-        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
-        transition: 'opacity 0.2s',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px'
-    };
-
-    const alertStyle = (type) => ({
-        padding: '12px 16px',
-        borderRadius: '8px',
-        fontSize: '14px',
-        fontWeight: '500',
-        backgroundColor: type === 'success' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-        border: type === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-        color: type === 'success' ? '#34D399' : '#F87171'
-    });
+    // Render loaded posts chronologically (oldest first at top, newest at bottom)
+    const postsToRender = [...previewOrder.slice(startIdx, endIdx)].reverse();
 
     return (
-        <div style={modalOverlayStyle} onClick={onClose}>
-            <div style={containerStyle} onClick={(e) => e.stopPropagation()}>
+        <div className="mm-forwarder-overlay" onClick={onClose}>
+            <style dangerouslySetInnerHTML={{ __html: themeStyles }} />
+            <div className="mm-forwarder-modal" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
-                <div style={headerStyle}>
-                    <h3 style={titleStyle}>
+                <div className="mm-forwarder-header">
+                    <h3 className="mm-forwarder-header-title">
                         <span>🔄</span> Forward Message(s)
                     </h3>
-                    <button style={closeButtonStyle} onClick={onClose} aria-label="Close">
+                    <button className="mm-forwarder-close-btn" onClick={onClose} aria-label="Close">
                         &times;
                     </button>
                 </div>
 
                 {/* Body */}
-                <div style={bodyStyle}>
-                    {/* Range config */}
-                    <div style={rowStyle}>
-                        <div style={formGroupStyle}>
-                            <label style={labelStyle}>Messages to Forward</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="50"
-                                style={inputNumberStyle}
-                                value={numMessages}
-                                onChange={(e) => setNumMessages(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                            />
-                        </div>
-                        <div style={formGroupStyle}>
-                            <label style={labelStyle}>Newest to Skip</label>
-                            <input
-                                type="number"
-                                min="0"
-                                style={inputNumberStyle}
-                                value={skipMessages}
-                                onChange={(e) => setSkipMessages(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                            />
-                        </div>
-                    </div>
+                <div className="mm-forwarder-body">
+                    <div className="mm-forwarder-grid" style={{ display: 'flex', gap: '24px', height: '460px', minHeight: 0 }}>
+                        
+                        {/* Left Side: Message Preview (Longer preview, click card to toggle) */}
+                        <div className="mm-forwarder-col-preview" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
+                            <label className="mm-forwarder-label">
+                                Select Messages to Forward ({selectedCount} selected)
+                            </label>
+                            
+                            {/* Preview Box */}
+                            <div className="mm-forwarder-preview-box">
+                                {postsToRender.length === 0 ? (
+                                    <div className="text-center py-8 mm-forwarder-subtext" style={{ fontSize: '13px' }}>
+                                        Loading messages...
+                                    </div>
+                                ) : (
+                                    postsToRender.map(pid => {
+                                        const post = previewPosts[pid];
+                                        if (!post) return null;
+                                        const { fullName, username } = getUserDisplayName(post.user_id);
+                                        const timeString = new Date(post.create_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                        const isSelected = !!selectedPosts[pid];
+                                        const imageFileIds = getImageFileIds(post);
 
-                    {/* Messages Selection Preview */}
-                    {selectedSlice.length > 0 && (
-                        <div style={formGroupStyle}>
-                            <label style={labelStyle}>Selected Messages Preview ({selectedSlice.length})</label>
-                            <div style={previewContainerStyle}>
-                                {selectedSlice.map(pid => {
-                                    const post = previewPosts[pid];
-                                    if (!post) return null;
-                                    return (
-                                        <div key={pid} style={previewItemStyle}>
-                                            <div style={previewAuthorStyle}>@{getUsername(post.user_id)}</div>
-                                            <div style={previewMsgStyle}>{post.message || '*[File Attachment / Image]*'}</div>
-                                        </div>
-                                    );
-                                })}
+                                        return (
+                                            <div 
+                                                key={pid} 
+                                                id={`post-card-${pid}`}
+                                                className={isSelected ? 'mm-forwarder-preview-item-selected' : 'mm-forwarder-preview-item-unselected'}
+                                                onClick={() => togglePostSelection(pid)}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mm-forwarder-checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => {}} // handled by card onClick
+                                                        style={{ marginTop: '2px' }}
+                                                    />
+                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <span className="mm-forwarder-fullname" style={isSelected ? {} : { color: 'var(--center-channel-color, #ffffff)' }}>{fullName}</span>
+                                                                {username && <span className="mm-forwarder-subtext">{username}</span>}
+                                                            </div>
+                                                            <span className="mm-forwarder-subtext">{timeString}</span>
+                                                        </div>
+                                                        <div style={{ fontSize: '12px', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                            {post.message || (post.file_ids && post.file_ids.length > 0 ? '' : '*[Empty Message]*')}
+                                                        </div>
+                                                        
+                                                        {/* Image Previews */}
+                                                        {imageFileIds.length > 0 && (
+                                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }} onClick={(e) => e.stopPropagation()}>
+                                                                {imageFileIds.map(fid => (
+                                                                    <img
+                                                                        key={fid}
+                                                                        src={`/api/v4/files/${fid}/thumbnail`}
+                                                                        alt="Attachment Preview"
+                                                                        style={{
+                                                                            maxWidth: '100%',
+                                                                            maxHeight: '100px',
+                                                                            borderRadius: '6px',
+                                                                            objectFit: 'contain',
+                                                                            border: '1px solid rgba(255, 255, 255, 0.08)'
+                                                                        }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
-                    )}
 
-                    {/* Search */}
-                    <input
-                        type="text"
-                        placeholder="Search channels or users..."
-                        style={searchInputStyle}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                        {/* Vertical Divider */}
+                        <div className="mm-forwarder-divider"></div>
 
-                    {/* Tabs */}
-                    <div>
-                        <div style={tabsContainerStyle}>
-                            <button style={getTabStyle('channels')} onClick={() => setActiveTab('channels')}>
-                                Channels
-                            </button>
-                            <button style={getTabStyle('users')} onClick={() => setActiveTab('users')}>
-                                Users / DMs
-                            </button>
-                        </div>
+                        {/* Right Side: Destinations Selector */}
+                        <div className="mm-forwarder-col-controls" style={{ width: '360px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: 0 }}>
+                            <label className="mm-forwarder-label">
+                                Forward Destinations
+                            </label>
+                            
+                            <input
+                                type="text"
+                                placeholder="Search channels or users..."
+                                className="mm-forwarder-input"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
 
-                        {/* List */}
-                        <div style={listStyle}>
-                            {activeTab === 'channels' ? (
-                                filteredChannels.length === 0 ? (
-                                    <div style={{ padding: '16px', color: 'rgba(255,255,255,0.3)', fontSize: '14px', textAlign: 'center' }}>
-                                        No channels found
-                                    </div>
-                                ) : (
-                                    filteredChannels.map(c => (
-                                        <div key={c.id} style={itemStyle} onClick={() => handleCheckboxChange(c.id, 'channel')}>
-                                            <input
-                                                type="checkbox"
-                                                style={checkboxStyle}
-                                                checked={!!selectedChannels[c.id]}
-                                                onChange={() => {}}
-                                            />
-                                            <span style={itemNameStyle}>~{c.display_name || c.name}</span>
-                                        </div>
-                                    ))
-                                )
-                            ) : (
-                                filteredUsers.length === 0 ? (
-                                    <div style={{ padding: '16px', color: 'rgba(255,255,255,0.3)', fontSize: '14px', textAlign: 'center' }}>
-                                        No users found
-                                    </div>
-                                ) : (
-                                    filteredUsers.map(u => (
-                                        <div key={u.id} style={itemStyle} onClick={() => handleCheckboxChange(u.id, 'user')}>
-                                            <input
-                                                type="checkbox"
-                                                style={checkboxStyle}
-                                                checked={!!selectedUsers[u.id]}
-                                                onChange={() => {}}
-                                            />
-                                            <span style={itemNameStyle}>@{u.username} ({u.first_name} {u.last_name})</span>
-                                        </div>
-                                    ))
-                                )
-                            )}
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                <div className="mm-forwarder-header-tabs" style={{ display: 'flex' }}>
+                                    <button 
+                                        className={activeTab === 'channels' ? 'mm-forwarder-tab-active' : 'mm-forwarder-tab-inactive'}
+                                        onClick={() => setActiveTab('channels')}
+                                    >
+                                        Channels
+                                    </button>
+                                    <button 
+                                        className={activeTab === 'users' ? 'mm-forwarder-tab-active' : 'mm-forwarder-tab-inactive'}
+                                        onClick={() => setActiveTab('users')}
+                                    >
+                                        Users / DMs
+                                    </button>
+                                </div>
+
+                                {/* Scrollable list with locked height to prevent screen overflow */}
+                                <div className="mm-forwarder-list-container">
+                                    {activeTab === 'channels' ? (
+                                        filteredChannels.length === 0 ? (
+                                            <div className="text-center py-8 mm-forwarder-subtext" style={{ fontSize: '12px' }}>
+                                                No channels found
+                                            </div>
+                                        ) : (
+                                            filteredChannels.map(c => (
+                                                <div key={c.id} className="mm-forwarder-list-item" onClick={() => handleCheckboxChange(c.id, 'channel')}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mm-forwarder-checkbox"
+                                                        checked={!!selectedChannels[c.id]}
+                                                        onChange={() => {}}
+                                                    />
+                                                    <span style={{ fontSize: '13px', fontWeight: '500' }}>~{c.display_name || c.name}</span>
+                                                </div>
+                                            ))
+                                        )
+                                    ) : (
+                                        filteredUsers.length === 0 ? (
+                                            <div className="text-center py-8 mm-forwarder-subtext" style={{ fontSize: '12px' }}>
+                                                No users found
+                                            </div>
+                                        ) : (
+                                            filteredUsers.map(u => (
+                                                <div key={u.id} className="mm-forwarder-list-item" onClick={() => handleCheckboxChange(u.id, 'user')}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mm-forwarder-checkbox"
+                                                        checked={!!selectedUsers[u.id]}
+                                                        onChange={() => {}}
+                                                    />
+                                                    <span style={{ fontSize: '13px', fontWeight: '500' }}>@{u.username} ({u.first_name} {u.last_name})</span>
+                                                </div>
+                                            ))
+                                        )
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* Alert Message */}
                     {statusMessage && (
-                        <div style={alertStyle(statusMessage.type)}>
+                        <div className={`mm-forwarder-alert ${statusMessage.type === 'success' ? 'mm-forwarder-alert-success' : 'mm-forwarder-alert-error'}`}>
                             {statusMessage.text}
                         </div>
                     )}
                 </div>
 
                 {/* Footer */}
-                <div style={footerStyle}>
-                    <button style={cancelButtonStyle} onClick={onClose} disabled={loading}>
+                <div className="mm-forwarder-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                    <button className="mm-forwarder-cancel-btn" onClick={onClose} disabled={loading}>
                         Cancel
                     </button>
-                    <button style={submitButtonStyle} onClick={handleForward} disabled={loading}>
+                    <button className="mm-forwarder-btn-primary" onClick={handleForward} disabled={loading}>
                         {loading ? 'Forwarding...' : 'Forward'}
                     </button>
                 </div>

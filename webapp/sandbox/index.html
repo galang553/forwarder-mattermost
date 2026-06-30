@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ForwardModal Sandbox Preview</title>
+    <!-- Tailwind CSS Play CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        violet: {
+                            500: '#7C3AED',
+                            600: '#6D28D9',
+                        },
+                        indigo: {
+                            600: '#4F46E5',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --center-channel-bg: #1e1e24;
+            --center-channel-color: #ffffff;
+            --center-channel-color-rgb: 255, 255, 255;
+            --button-bg: #7c3aed;
+            --button-color: #ffffff;
+        }
+        body {
+            background-color: #0b0b0d;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="bg-[#0b0b0d] text-white">
+    <div id="root" class="w-full h-full min-h-screen flex items-center justify-center"></div>
+    <script type="module" src="/main.jsx"></script>
+</body>
+</html>

@@ -24,6 +24,8 @@ webapp/dist/
 
 server/dist/
 
+dist/
+
 # IDE configurations
 .idea/
 .vscode/

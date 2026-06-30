@@ -45,4 +45,4 @@ class Plugin {
     }
 }
 
-window.registerPlugin('com.exakarya.message-forwarder', new Plugin());
+window.registerPlugin('com.rivestudy.message-forwarder', new Plugin());
