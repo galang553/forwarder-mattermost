@@ -1,93 +1,66 @@
-# Mattermost Message Forwarder
+# Message Forwarder Plugin for Mattermost
 
-A highly lightweight, containerized Go service that allows users to batch-forward recent messages in any Mattermost channel using the `/forward` slash command and a native interactive dialog.
+A native Mattermost plugin that adds a premium, interactive side-by-side modal to batch-forward recent messages. Simply click **"Forward Message(s)"** from any post's hover options menu, select your target channels or users, check/uncheck messages in a chronological preview feed (with image thumbnail support), and forward them instantly.
 
 ---
 
 ## Features
-- 🚀 **Ultra-lightweight**: Built on a Go backend (minimal memory, sub-30MB Docker image).
-- 💬 **Interactive Dialog**: Prompts native pop-up for destination selection and quantity control.
-- 🔍 **Searchable dropdowns**: Supports selection of target **Public Channels** or **Direct Message Users**.
-- 🛠️ **Error Validation**: Displays input validation errors directly inside the Mattermost UI dialog.
-- 📦 **Docker Ready**: Configured to run out-of-the-box using Docker Compose.
+
+- 📎 **Dropdown Hover Action**: Launch the batch-forwarding interface directly from any post's hover options menu.
+- 🖱️ **Click-to-Select Timeline**: Shows a chronological timeline centered on your clicked post. Directly toggle messages in the preview box to include/exclude them from the forward.
+- 🖼️ **Inline Image Previews**: Automatically renders thumbnails of image attachments inside the preview box before forwarding.
+- 🚀 **Auto-Redirect & Close**: Seamlessly redirects your view to the target channel or DM after a successful forward, then auto-closes after 1.5 seconds.
+- 🌓 **Mattermost Theme Alignment**: Dynamically inherits styles using native CSS variables (`--center-channel-bg`, `--button-bg`, etc.) and native opacity fallbacks to match dark, light, or custom themes.
+- 🕒 **Local Time Zone Conversion**: Automatically parses UTC timestamps to the local time zone (`GMT+7`) for the forwarded message header quotes.
+- 🔒 **Secure Attachment Forwarding**: Re-uploads original file attachments to target destinations so they inherit target channel permissions. In-place Markdown file ID replacement prevents double rendering or broken access.
 
 ---
 
-## Mattermost Setup Steps
+## Build Instructions
 
-To run this integration, you need admin access to your Mattermost instance.
+### Prerequisites
+- **Go** 1.18+ (for server compilation)
+- **Node.js** 16+ & **npm** (for webapp compilation)
 
-### 1. Create a Bot Account
-1. Open the Mattermost **Main Menu** -> **Integrations** -> **Bot Accounts**.
-2. Click **Add Bot Account**.
-3. Set the details:
-   - **Username**: `message-forwarder`
-   - **Display Name**: `Message Forwarder`
-   - **Description**: `Forwards messages between channels.`
-   - **Role**: `Member` (or `System Admin` if you want it to be able to post to private channels).
-4. Click **Create Bot Account**.
-5. **Copy the generated Bot Token**. You will need this for the `MATTERMOST_BOT_TOKEN` environment variable.
+### Packaging the Plugin
+Run the package command from the root project folder to compile the backend executable for all target OS distributions (Linux, Windows, Darwin) and bundle the React webapp:
 
-### 2. Create the Slash Command
-1. Open **Main Menu** -> **Integrations** -> **Slash Commands**.
-2. Click **Add Slash Command**.
-3. Set the details:
-   - **Title**: `Message Forwarder`
-   - **Description**: `Batch forward recent messages.`
-   - **Command Trigger Word**: `forward`
-   - **Request URL**: `http://<your-server-ip>:8080/forward` (Replace with the URL where this service is exposed to Mattermost).
-   - **Request Method**: `POST`
-   - **Autocomplete**: `Yes`
-   - **Autocomplete Hint**: `[batch forward recent channel messages]`
-4. Click **Save**.
-5. **Copy the generated token**. This is your `SLASH_COMMAND_TOKEN` used to verify requests.
+```bash
+make package
+```
+
+The output package will be generated at:
+`dist/com.rivestudy.message-forwarder.tar.gz`
 
 ---
 
-## Deployment Instructions
+## Installation Steps
 
-### 1. Configure Environment Variables
-Create a `.env` file in the project directory:
-
-```env
-# The external URL where this forwarder service is reachable by Mattermost
-SERVER_URL=http://<your-server-ip>:8080
-
-# Your Mattermost Server URL
-MATTERMOST_URL=http://<your-mattermost-ip>:8065
-
-# The Bot Access Token created in Step 1
-MATTERMOST_BOT_TOKEN=your_mattermost_bot_token
-
-# The Slash Command Token created in Step 2 (Optional, for request verification)
-SLASH_COMMAND_TOKEN=your_slash_command_token
-
-# Port for the integration service to listen on
-PORT=8080
-```
-
-### 2. Start the Container
-Run the following command to build and launch the service:
-
-```bash
-docker compose up -d --build
-```
-
-To stop the service:
-
-```bash
-docker compose down
-```
+1. Log in to your Mattermost instance as a **System Administrator**.
+2. Navigate to **System Console** -> **Plugins** -> **Plugin Management**.
+3. Under **Upload Plugin**, choose the generated `dist/com.rivestudy.message-forwarder.tar.gz` and upload it.
+4. Locate **"Message Forwarder by rivestudy"** in the list of installed plugins and click **Enable**.
 
 ---
 
 ## How to Use
 
-1. Go to any Mattermost channel.
-2. Type `/forward` and hit Enter.
-3. An interactive dialog will pop up:
-   - **Number of Messages to Forward**: Enter how many recent messages you want to grab (e.g., `5`, max `50`).
-   - **Destination Channel**: Select a channel from the searchable list.
-   - **Destination User (Direct Message)**: Alternatively, select a user to forward the messages to as a private DM.
-4. Click **Forward**.
-5. The selected messages will be consolidated and posted in the destination with clean markdown quoting, indicating who originally sent them and when. You will receive a private confirmation message in the source channel.
+1. Hover over any post in a channel or DM chat.
+2. Click the **`...` (More Actions)** menu and select **`📎 Forward Message(s)`**.
+3. In the modal:
+   - **Left Column**: Displays a chronological preview of messages. Click any message card to check/uncheck it. (The trigger message is selected by default). Image attachments will show as inline previews.
+   - **Right Column**: Search for destination channels or direct messages under the **Channels** or **Users / DMs** tabs.
+4. Click **Forward**. The status will update, automatically slide your channel view to the forwarded channel, and close the dialog in 1.5 seconds.
+
+---
+
+## Sandbox Preview Environment
+
+We have provided a standalone preview environment for testing the React components without installing a Mattermost server:
+
+```bash
+cd webapp
+npm run sandbox
+```
+
+This starts a local dev server at `http://localhost:3000/` with live-reloading. Any change to `ForwardModal.jsx` will be instantly reflected in the browser mockup.
